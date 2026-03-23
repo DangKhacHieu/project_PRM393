@@ -269,4 +269,99 @@ class DBHelper {
     }
     return eventMap;
   }
+
+  // Thêm hàm này vào class DBHelper của bạn
+  Future<Map<String, int>> getReminderStatistics() async {
+    var dbClient = await db;
+    int? userId = await _getCurrentUserId();
+
+    // Đếm số lượng nhắc nhở chưa xóa của User hiện tại
+    // 1. Lấy số lượng Đang chờ (Pending)
+    var pendingRes = await dbClient.rawQuery(
+        'SELECT COUNT(*) as count FROM reminders WHERE user_id = ? AND isDone = 0 AND isDeleted = 0',
+        [userId]
+    );
+
+    // 2. Lấy số lượng Đã hoàn thành (Completed)
+    var completedRes = await dbClient.rawQuery(
+        'SELECT COUNT(*) as count FROM reminders WHERE user_id = ? AND isDone = 1 AND isDeleted = 0',
+        [userId]
+    );
+
+    return {
+      'pending': Sqflite.firstIntValue(pendingRes) ?? 0,
+      'completed': Sqflite.firstIntValue(completedRes) ?? 0,
+    };
+  }
+
+  Future<Map<String, dynamic>> getAdvancedStatistics() async {
+    var dbClient = await db;
+    int? userId = await _getCurrentUserId();
+    String now = DateTime.now().toIso8601String();
+
+    // 1. Thống kê Trạng thái (Hoàn thành, Quá hạn, Đang chờ)
+    var statusRes = await dbClient.rawQuery('''
+    SELECT 
+      SUM(CASE WHEN isDone = 1 THEN 1 ELSE 0 END) as completed,
+      SUM(CASE WHEN isDone = 0 AND datetime(time) < datetime(?) THEN 1 ELSE 0 END) as overdue,
+      SUM(CASE WHEN isDone = 0 AND datetime(time) >= datetime(?) THEN 1 ELSE 0 END) as pending
+    FROM reminders 
+    WHERE user_id = ? AND isDeleted = 0
+  ''', [now, now, userId]);
+
+    // 2. Thống kê theo Category (Danh mục)
+    var categoryRes = await dbClient.rawQuery('''
+    SELECT category, COUNT(*) as count 
+    FROM reminders 
+    WHERE user_id = ? AND isDeleted = 0
+    GROUP BY category
+  ''', [userId]);
+
+    return {
+      'status': statusRes.first,
+      'categories': categoryRes,
+    };
+  }
+
+  // Thêm vào trong class DBHelper
+  Future<Map<String, dynamic>> getMonthlyStatistics(int month, int year) async {
+    var dbClient = await db;
+    int? userId = await _getCurrentUserId(); // Lấy từ SharedPreferences [cite: 4]
+
+    // Định dạng tháng thành 'YYYY-MM' để khớp với cột 'time' [cite: 7]
+    String monthStr = "$year-${month.toString().padLeft(2, '0')}";
+    String now = DateTime.now().toIso8601String();
+
+    // 1. Thống kê trạng thái (Logic tối ưu cho UX) [cite: 9, 35]
+    var statusRes = await dbClient.rawQuery('''
+    SELECT 
+      -- Hoàn thành: Tính tất cả (kể cả đã xóa vào thùng rác) để ghi nhận năng suất [cite: 17, 25]
+      SUM(CASE WHEN isDone = 1 THEN 1 ELSE 0 END) as completed,
+      
+      -- Quá hạn: Chỉ tính nếu CHƯA XONG và CHƯA BỊ XÓA [cite: 9, 11]
+      SUM(CASE WHEN isDone = 0 AND isDeleted = 0 AND datetime(time) < datetime(?) THEN 1 ELSE 0 END) as overdue,
+      
+      -- Đang chờ: Chỉ tính nếu CHƯA XONG và CHƯA BỊ XÓA [cite: 9, 11]
+      SUM(CASE WHEN isDone = 0 AND isDeleted = 0 AND datetime(time) >= datetime(?) THEN 1 ELSE 0 END) as pending
+    FROM reminders 
+    WHERE user_id = ? 
+      AND strftime('%Y-%m', time) = ?
+  ''', [now, now, userId, monthStr]);
+
+    // 2. Thống kê theo danh mục (Category) [cite: 33, 34]
+    // Lưu ý: Chỉ thống kê các Category của những việc thực sự tồn tại (chưa xóa) hoặc đã xong
+    var categoryRes = await dbClient.rawQuery('''
+    SELECT category, COUNT(*) as count 
+    FROM reminders 
+    WHERE user_id = ? 
+      AND strftime('%Y-%m', time) = ?
+      AND (isDeleted = 0 OR isDone = 1) 
+    GROUP BY category
+  ''', [userId, monthStr]);
+
+    return {
+      'status': statusRes.first,
+      'categories': categoryRes,
+    };
+  }
 }

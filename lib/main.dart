@@ -9,6 +9,7 @@ import 'screens/add_reminder_screen.dart';
 import 'screens/trash_screen.dart';
 import 'screens/pomodoro_screen.dart';
 import 'screens/calendar_screen.dart';
+import'screens/statistics_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 void main() async {
@@ -231,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ],
-      bottom: PreferredSize(
+      bottom: PreferredSize(  
         preferredSize: const Size.fromHeight(130),
         child: Column(
           children: [
@@ -500,6 +501,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _buildReminderList(),
       CalendarScreen(key: _calendarKey),
       PomodoroScreen(),
+       StatisticsScreen(),
     ];
 
     return Scaffold(
@@ -528,6 +530,7 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Nhắc nhở'),
           BottomNavigationBarItem(icon: Icon(Icons.calendar_month), label: 'Lịch'),
           BottomNavigationBarItem(icon: Icon(Icons.timer), label: 'Pomodoro'),
+          BottomNavigationBarItem(icon: Icon(Icons.pie_chart), label: 'Thống kê'),
         ],
       ),
     );
