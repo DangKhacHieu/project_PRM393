@@ -190,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
+      automaticallyImplyLeading: false,
       title: const Text("Nhắc nhở"),
       actions: [
         // NÚT ĐĂNG XUẤT
